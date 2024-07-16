@@ -6,7 +6,7 @@ set -e
 
 RESULTS_DIR=${1:-"/tmp"}
 
-LOG_LEVEL="ERR"
+LOG_LEVEL="DEBUG"
 
 DATADIR_DC1=$(mktemp -d ${RESULTS_DIR}/consul-test1.XXXXXXXXXX)
 DATADIR_DC2=$(mktemp -d ${RESULTS_DIR}/consul-test2.XXXXXXXXXX)
@@ -44,7 +44,7 @@ grpcTLS=""
 [[ minorVersion -gt 13 ]] && grpcTLS=', "grpc_tls": -1'
 
 echo "--> Starting Consul in DC1..."
-echo "{\"ports\": {\"http\": ${PORT_DC1}, \"dns\": 8101, \"serf_lan\": 8103, \"serf_wan\": 8104, \"server\": 8105, \"grpc\": -1 ${grpcTLS}}}" > "${DATADIR_DC1}/${CONFIG_FILE}"
+echo "{\"ports\": {\"http\": ${PORT_DC1}, \"dns\": 8101, \"serf_lan\": 8103, \"serf_wan\": 8104, \"server\": 8105, \"grpc\": -1 ${grpcTLS}}}" >"${DATADIR_DC1}/${CONFIG_FILE}"
 consul agent \
   -dev \
   -datacenter "dc1" \
@@ -52,12 +52,12 @@ consul agent \
   -config-file "${DATADIR_DC1}/${CONFIG_FILE}" \
   -data-dir "${DATADIR_DC1}" \
   -log-level "${LOG_LEVEL}" \
-  &> ${DATADIR_DC1}/consul-agent.log \
+  &>${DATADIR_DC1}/consul-agent.log \
   &
 CONSUL_DC1_PID=$!
 
 echo "--> Starting Consul in DC2..."
-echo "{\"ports\": {\"http\": ${PORT_DC2}, \"dns\": 8201, \"serf_lan\": 8203, \"serf_wan\": 8204, \"server\": 8205, \"grpc\": -1 ${grpcTLS}}}" > "${DATADIR_DC2}/${CONFIG_FILE}"
+echo "{\"ports\": {\"http\": ${PORT_DC2}, \"dns\": 8201, \"serf_lan\": 8203, \"serf_wan\": 8204, \"server\": 8205, \"grpc\": -1 ${grpcTLS}}}" >"${DATADIR_DC2}/${CONFIG_FILE}"
 consul agent \
   -dev \
   -datacenter "dc2" \
@@ -66,7 +66,7 @@ consul agent \
   -config-file "${DATADIR_DC2}/${CONFIG_FILE}" \
   -data-dir "${DATADIR_DC2}" \
   -log-level "${LOG_LEVEL}" \
-  &> ${DATADIR_DC2}/consul-agent.log \
+  &>${DATADIR_DC2}/consul-agent.log \
   &
 CONSUL_DC2_PID=$!
 
@@ -87,7 +87,8 @@ until consul kv get -keys -http-addr "${ADDRESS_DC2}" &>/dev/null; do
 done
 
 echo "--> Creating keys in DC1..."
-consul kv import -http-addr="${ADDRESS_DC1}" - <<< $(cat <<EOF
+consul kv import -http-addr="${ADDRESS_DC1}" - <<<$(
+  cat <<EOF
 [
   {"key": "global/1", "value": "dGVzdCBkYXRh"},
   {"key": "global/2", "value": "dGVzdCBkYXRh"},
@@ -105,7 +106,8 @@ EOF
 
 echo "--> Starting consul-replicate with -once..."
 "${CONSUL_REPLICATE_BIN}" \
-  -consul-addr "${ADDRESS_DC2}" \
+  -consul-addr "${ADDRESS_DC1}" \
+  -consul-dst-addr "${ADDRESS_DC2}" \
   -prefix "global@dc1:backup" \
   -exclude "global/${EXCLUDED_KEY}" \
   -log-level "${LOG_LEVEL}" \
@@ -113,7 +115,7 @@ echo "--> Starting consul-replicate with -once..."
 sleep 3
 
 echo "--> Checking for DC2 replication..."
-for i in `seq 1 9`; do
+for i in $(seq 1 9); do
   printf "    backup/$i... "
   if [ "$i" != "$EXCLUDED_KEY" ]; then
     consul kv get -http-addr="${ADDRESS_DC2}" "backup/$i" | grep -q "test data"
@@ -126,7 +128,8 @@ consul kv get -http-addr="${ADDRESS_DC2}" "backupization" | grep -q "test data"
 
 echo "--> Starting consul-replicate as a service..."
 "${CONSUL_REPLICATE_BIN}" \
-  -consul-addr ${ADDRESS_DC2} \
+  -consul-addr ${ADDRESS_DC1} \
+  -consul-dst-addr ${ADDRESS_DC2} \
   -prefix "global@dc1:backup" \
   -exclude "global/${EXCLUDED_KEY}" \
   -log-level "${LOG_LEVEL}" &

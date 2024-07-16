@@ -31,7 +31,7 @@ func TestParse(t *testing.T) {
 				password = "bar"
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Auth: &config.AuthConfig{
 						Enabled:  config.Bool(true),
 						Username: config.String("foo"),
@@ -45,7 +45,7 @@ func TestParse(t *testing.T) {
 			"consul_top_level",
 			`consul = "127.0.0.1:8500"`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("127.0.0.1:8500"),
 				},
 			},
@@ -61,7 +61,7 @@ func TestParse(t *testing.T) {
 			"retry_top_level",
 			`retry = "5s"`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						Backoff:    config.TimeDuration(5 * time.Second),
 						MaxBackoff: config.TimeDuration(5 * time.Second),
@@ -74,7 +74,7 @@ func TestParse(t *testing.T) {
 			"retry_top_level_int",
 			`retry = 5`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						Backoff:    config.TimeDuration(5 * time.Nanosecond),
 						MaxBackoff: config.TimeDuration(5 * time.Nanosecond),
@@ -93,7 +93,7 @@ func TestParse(t *testing.T) {
 				ca_cert = "ca_cert"
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Enabled: config.Bool(true),
 						Verify:  config.Bool(false),
@@ -109,7 +109,7 @@ func TestParse(t *testing.T) {
 			"token_top_level",
 			`token = "abcd1234"`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Token: config.String("abcd1234"),
 				},
 			},
@@ -124,7 +124,7 @@ func TestParse(t *testing.T) {
 				address = "1.2.3.4"
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("1.2.3.4"),
 				},
 			},
@@ -139,7 +139,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Auth: &config.AuthConfig{
 						Username: config.String("username"),
 						Password: config.String("password"),
@@ -157,7 +157,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						Attempts: config.Int(10),
 						Backoff:  config.TimeDuration(2 * time.Second),
@@ -172,7 +172,7 @@ func TestParse(t *testing.T) {
 				ssl {}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{},
 				},
 			},
@@ -186,7 +186,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Enabled: config.Bool(true),
 					},
@@ -202,7 +202,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Verify: config.Bool(true),
 					},
@@ -218,7 +218,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Cert: config.String("cert"),
 					},
@@ -234,7 +234,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Key: config.String("key"),
 					},
@@ -250,7 +250,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						CaCert: config.String("ca_cert"),
 					},
@@ -266,7 +266,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						CaPath: config.String("ca_path"),
 					},
@@ -282,7 +282,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						ServerName: config.String("server_name"),
 					},
@@ -296,7 +296,7 @@ func TestParse(t *testing.T) {
 				token = "token"
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Token: config.String("token"),
 				},
 			},
@@ -310,7 +310,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						DialKeepAlive: config.TimeDuration(10 * time.Second),
 					},
@@ -326,7 +326,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						DialTimeout: config.TimeDuration(10 * time.Second),
 					},
@@ -342,7 +342,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						DisableKeepAlives: config.Bool(true),
 					},
@@ -358,7 +358,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						MaxIdleConnsPerHost: config.Int(100),
 					},
@@ -374,7 +374,7 @@ func TestParse(t *testing.T) {
 				}
 			}`,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						TLSHandshakeTimeout: config.TimeDuration(30 * time.Second),
 					},
@@ -489,9 +489,9 @@ func TestParse(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Datacenter:  config.String("dc"),
-						Destination: config.String("foo/bar"),
-						Source:      config.String("foo/bar"),
+						DestinationDatacenter: config.String("dc"),
+						DestinationPath:       config.String("foo/bar"),
+						SourcePath:            config.String("foo/bar"),
 					},
 				},
 			},
@@ -506,9 +506,9 @@ func TestParse(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Datacenter:  config.String("dc"),
-						Destination: config.String("default"),
-						Source:      config.String("foo/bar"),
+						DestinationDatacenter: config.String("dc"),
+						DestinationPath:       config.String("default"),
+						SourcePath:            config.String("foo/bar"),
 					},
 				},
 			},
@@ -522,9 +522,9 @@ func TestParse(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Datacenter:  config.String("dc"),
-						Destination: config.String("default"),
-						Source:      config.String("foo/bar"),
+						DestinationDatacenter: config.String("dc"),
+						DestinationPath:       config.String("default"),
+						SourcePath:            config.String("foo/bar"),
 					},
 				},
 			},
@@ -539,9 +539,9 @@ func TestParse(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Datacenter:  config.String("dc"),
-						Destination: config.String("foo/bar"),
-						Source:      config.String("foo/bar"),
+						DestinationDatacenter: config.String("dc"),
+						DestinationPath:       config.String("foo/bar"),
+						SourcePath:            config.String("foo/bar"),
 					},
 				},
 			},
@@ -700,17 +700,17 @@ func TestConfig_Merge(t *testing.T) {
 		{
 			"consul",
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("consul"),
 				},
 			},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("consul-diff"),
 				},
 			},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("consul-diff"),
 				},
 			},
@@ -795,24 +795,24 @@ func TestConfig_Merge(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Source: config.String("foo/bar"),
+						SourcePath: config.String("foo/bar"),
 					},
 				},
 			},
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Source: config.String("zip/zap"),
+						SourcePath: config.String("zip/zap"),
 					},
 				},
 			},
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Source: config.String("foo/bar"),
+						SourcePath: config.String("foo/bar"),
 					},
 					&PrefixConfig{
-						Source: config.String("zip/zap"),
+						SourcePath: config.String("zip/zap"),
 					},
 				},
 			},
@@ -919,7 +919,7 @@ func TestFromPath(t *testing.T) {
 			address = "1.2.3.4"
 		}
 	`)
-	if err = os.WriteFile(cf1.Name(), d, 0644); err != nil {
+	if err = os.WriteFile(cf1.Name(), d, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cf2, err := os.CreateTemp(configDir, "")
@@ -931,7 +931,7 @@ func TestFromPath(t *testing.T) {
 			token = "token"
 		}
 	`)
-	if err := os.WriteFile(cf2.Name(), d, 0644); err != nil {
+	if err := os.WriteFile(cf2.Name(), d, 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -963,7 +963,7 @@ func TestFromPath(t *testing.T) {
 			"config_dir",
 			configDir,
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("1.2.3.4"),
 					Token:   config.String("token"),
 				},
@@ -996,7 +996,7 @@ func TestDefaultConfig(t *testing.T) {
 			"CONSUL_HTTP_ADDR",
 			"1.2.3.4",
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("1.2.3.4"),
 				},
 			},
@@ -1022,7 +1022,7 @@ func TestDefaultConfig(t *testing.T) {
 			"CONSUL_TOKEN",
 			"token",
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Token: config.String("token"),
 				},
 			},

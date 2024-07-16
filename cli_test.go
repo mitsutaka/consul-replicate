@@ -36,7 +36,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"auth",
 			[]string{"-auth", "abcd:efgh"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Auth: &config.AuthConfig{
 						Username: config.String("abcd"),
 						Password: config.String("efgh"),
@@ -49,7 +49,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul",
 			[]string{"-consul", "127.0.0.1:8500"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("127.0.0.1:8500"),
 				},
 			},
@@ -59,7 +59,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"retry",
 			[]string{"-retry", "10s"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						Backoff:    config.TimeDuration(10 * time.Second),
 						MaxBackoff: config.TimeDuration(10 * time.Second),
@@ -72,7 +72,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"ssl",
 			[]string{"-ssl"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Enabled: config.Bool(true),
 					},
@@ -84,7 +84,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"ssl_verify",
 			[]string{"-ssl-verify"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Verify: config.Bool(true),
 					},
@@ -96,7 +96,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"ssl_ca-cert",
 			[]string{"-ssl-ca-cert", "foo"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						CaCert: config.String("foo"),
 					},
@@ -108,7 +108,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"ssl_cert",
 			[]string{"-ssl-cert", "foo"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Cert: config.String("foo"),
 					},
@@ -120,7 +120,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"token",
 			[]string{"-token", "abcd1234"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Token: config.String("abcd1234"),
 				},
 			},
@@ -148,7 +148,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul_addr",
 			[]string{"-consul-addr", "1.2.3.4"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Address: config.String("1.2.3.4"),
 				},
 			},
@@ -164,7 +164,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul_auth_username",
 			[]string{"-consul-auth", "username"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Auth: &config.AuthConfig{
 						Username: config.String("username"),
 					},
@@ -176,7 +176,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul_auth_username_password",
 			[]string{"-consul-auth", "username:password"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Auth: &config.AuthConfig{
 						Username: config.String("username"),
 						Password: config.String("password"),
@@ -189,7 +189,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-retry",
 			[]string{"-consul-retry"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						Enabled: config.Bool(true),
 					},
@@ -201,7 +201,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-retry-attempts",
 			[]string{"-consul-retry-attempts", "20"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						Attempts: config.Int(20),
 					},
@@ -213,7 +213,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-retry-backoff",
 			[]string{"-consul-retry-backoff", "30s"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						Backoff: config.TimeDuration(30 * time.Second),
 					},
@@ -225,7 +225,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-retry-max-backoff",
 			[]string{"-consul-retry-max-backoff", "60s"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Retry: &config.RetryConfig{
 						MaxBackoff: config.TimeDuration(60 * time.Second),
 					},
@@ -237,7 +237,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-ssl",
 			[]string{"-consul-ssl"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Enabled: config.Bool(true),
 					},
@@ -249,7 +249,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-ssl-ca-cert",
 			[]string{"-consul-ssl-ca-cert", "ca_cert"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						CaCert: config.String("ca_cert"),
 					},
@@ -261,7 +261,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-ssl-ca-path",
 			[]string{"-consul-ssl-ca-path", "ca_path"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						CaPath: config.String("ca_path"),
 					},
@@ -273,7 +273,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-ssl-cert",
 			[]string{"-consul-ssl-cert", "cert"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Cert: config.String("cert"),
 					},
@@ -285,7 +285,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-ssl-key",
 			[]string{"-consul-ssl-key", "key"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Key: config.String("key"),
 					},
@@ -297,7 +297,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-ssl-server-name",
 			[]string{"-consul-ssl-server-name", "server_name"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						ServerName: config.String("server_name"),
 					},
@@ -309,7 +309,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-ssl-verify",
 			[]string{"-consul-ssl-verify"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					SSL: &config.SSLConfig{
 						Verify: config.Bool(true),
 					},
@@ -321,7 +321,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-token",
 			[]string{"-consul-token", "token"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Token: config.String("token"),
 				},
 			},
@@ -331,7 +331,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-transport-dial-keep-alive",
 			[]string{"-consul-transport-dial-keep-alive", "30s"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						DialKeepAlive: config.TimeDuration(30 * time.Second),
 					},
@@ -343,7 +343,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-transport-dial-timeout",
 			[]string{"-consul-transport-dial-timeout", "30s"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						DialTimeout: config.TimeDuration(30 * time.Second),
 					},
@@ -355,7 +355,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-transport-disable-keep-alives",
 			[]string{"-consul-transport-disable-keep-alives"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						DisableKeepAlives: config.Bool(true),
 					},
@@ -367,7 +367,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-transport-max-idle-conns-per-host",
 			[]string{"-consul-transport-max-idle-conns-per-host", "100"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						MaxIdleConnsPerHost: config.Int(100),
 					},
@@ -379,7 +379,7 @@ func TestCLI_ParseFlags(t *testing.T) {
 			"consul-transport-tls-handshake-timeout",
 			[]string{"-consul-transport-tls-handshake-timeout", "30s"},
 			&Config{
-				Consul: &config.ConsulConfig{
+				ConsulSrc: &config.ConsulConfig{
 					Transport: &config.TransportConfig{
 						TLSHandshakeTimeout: config.TimeDuration(30 * time.Second),
 					},
@@ -455,9 +455,9 @@ func TestCLI_ParseFlags(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Datacenter:  config.String("dc1"),
-						Destination: config.String("foo/bar"),
-						Source:      config.String("foo/bar"),
+						DestinationDatacenter: config.String("dc1"),
+						DestinationPath:       config.String("foo/bar"),
+						SourcePath:            config.String("foo/bar"),
 					},
 				},
 			},
@@ -469,9 +469,9 @@ func TestCLI_ParseFlags(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Datacenter:  config.String("dc1"),
-						Destination: config.String("destination"),
-						Source:      config.String("foo/bar"),
+						DestinationDatacenter: config.String("dc1"),
+						DestinationPath:       config.String("destination"),
+						SourcePath:            config.String("foo/bar"),
 					},
 				},
 			},
@@ -486,14 +486,14 @@ func TestCLI_ParseFlags(t *testing.T) {
 			&Config{
 				Prefixes: &PrefixConfigs{
 					&PrefixConfig{
-						Datacenter:  config.String("dc"),
-						Destination: config.String("foo/bar"),
-						Source:      config.String("foo/bar"),
+						DestinationDatacenter: config.String("dc"),
+						DestinationPath:       config.String("foo/bar"),
+						SourcePath:            config.String("foo/bar"),
 					},
 					&PrefixConfig{
-						Datacenter:  config.String("dc"),
-						Destination: config.String("zip/zap"),
-						Source:      config.String("zip/zap"),
+						DestinationDatacenter: config.String("dc"),
+						DestinationPath:       config.String("zip/zap"),
+						SourcePath:            config.String("zip/zap"),
 					},
 				},
 			},

@@ -13,10 +13,11 @@ import (
 
 // PrefixConfig is the representation of a key prefix.
 type PrefixConfig struct {
-	Datacenter  *string          `mapstructure:"datacenter"`
-	Dependency  *dep.KVListQuery `mapstructure:"-"`
-	Destination *string          `mapstructure:"destination"`
-	Source      *string          `mapstructure:"source"`
+	Dependency            *dep.KVListQuery `mapstructure:"-"`
+	DestinationPath       *string          `mapstructure:"destination_path"`
+	DestinationDatacenter *string          `mapstructure:"destination_datacenter"`
+	SourcePath            *string          `mapstructure:"source_path"`
+	SourceDatacenter      *string          `mapstructure:"source_datacenter"`
 }
 
 // ParsePrefixConfig parses a prefix of the format "source@dc:destination" into
@@ -43,14 +44,14 @@ func ParsePrefixConfig(s string) (*PrefixConfig, error) {
 	}
 	m := regexpMatch(dep.KVListQueryRe, source)
 
-	prefix, dc := m["prefix"], m["dc"]
+	srcPrefix, srcDC := m["prefix"], m["dc"]
 
-	if dc == "" {
-		return nil, fmt.Errorf("missing datacenter")
+	if srcPrefix == "" {
+		return nil, fmt.Errorf("missing source_prefix")
 	}
 
-	if prefix == "" {
-		return nil, fmt.Errorf("missing prefix")
+	if srcDC == "" {
+		return nil, fmt.Errorf("missing source_datacenter")
 	}
 
 	d, err := dep.NewKVListQuery(source)
@@ -58,15 +59,34 @@ func ParsePrefixConfig(s string) (*PrefixConfig, error) {
 		return nil, err
 	}
 
-	if destination == "" {
-		destination = prefix
+	var dstPrefix, dstDC string
+	if destination != "" {
+		if !dep.KVListQueryRe.MatchString(destination) {
+			return nil, fmt.Errorf("invalid destination format: %q", destination)
+		}
+		m := regexpMatch(dep.KVListQueryRe, destination)
+
+		dstPrefix, dstDC = m["prefix"], m["dc"]
+
+		if dstPrefix == "" {
+			return nil, fmt.Errorf("missing destination_prefix")
+		}
+
+		if dstDC == "" {
+			// Use same datacenter
+			dstDC = srcDC
+		}
+	} else {
+		dstPrefix = srcPrefix
+		dstDC = srcDC
 	}
 
 	return &PrefixConfig{
-		Datacenter:  config.String(dc),
-		Dependency:  d,
-		Destination: config.String(destination),
-		Source:      config.String(prefix),
+		Dependency:            d,
+		DestinationPath:       config.String(dstPrefix),
+		DestinationDatacenter: config.String(dstDC),
+		SourcePath:            config.String(srcPrefix),
+		SourceDatacenter:      config.String(srcDC),
 	}, nil
 }
 
@@ -83,11 +103,10 @@ func (c *PrefixConfig) Copy() *PrefixConfig {
 
 	o.Dependency = c.Dependency
 
-	o.Source = c.Source
-
-	o.Datacenter = c.Datacenter
-
-	o.Destination = c.Destination
+	o.SourcePath = c.SourcePath
+	o.SourceDatacenter = c.SourceDatacenter
+	o.DestinationPath = c.DestinationPath
+	o.DestinationDatacenter = c.DestinationDatacenter
 
 	return &o
 }
@@ -110,32 +129,40 @@ func (c *PrefixConfig) Merge(o *PrefixConfig) *PrefixConfig {
 		r.Dependency = o.Dependency
 	}
 
-	if o.Source != nil {
-		r.Source = o.Source
+	if o.SourcePath != nil {
+		r.SourcePath = o.SourcePath
 	}
 
-	if o.Datacenter != nil {
-		r.Datacenter = o.Datacenter
+	if o.SourceDatacenter != nil {
+		r.SourceDatacenter = o.SourceDatacenter
 	}
 
-	if o.Destination != nil {
-		r.Destination = o.Destination
+	if o.DestinationPath != nil {
+		r.DestinationPath = o.DestinationPath
+	}
+
+	if o.DestinationDatacenter != nil {
+		r.DestinationDatacenter = o.DestinationDatacenter
 	}
 
 	return r
 }
 
 func (c *PrefixConfig) Finalize() {
-	if c.Source == nil {
-		c.Source = config.String("")
+	if c.SourcePath == nil {
+		c.SourcePath = config.String("")
 	}
 
-	if c.Datacenter == nil {
-		c.Datacenter = config.String("")
+	if c.SourceDatacenter == nil {
+		c.SourceDatacenter = config.String("")
 	}
 
-	if c.Destination == nil {
-		c.Destination = config.String("")
+	if c.DestinationPath == nil {
+		c.DestinationPath = config.String("")
+	}
+
+	if c.DestinationDatacenter == nil {
+		c.DestinationDatacenter = config.String("")
 	}
 }
 
@@ -145,15 +172,17 @@ func (c *PrefixConfig) GoString() string {
 	}
 
 	return fmt.Sprintf("&PrefixConfig{"+
-		"Datacenter:%s, "+
 		"Dependency:%s, "+
-		"Destination:%s, "+
-		"Source:%s"+
+		"SourcePath:%s, "+
+		"SourceDatacenter:%s, "+
+		"DestinationPath:%s, "+
+		"DestinationDatacenter:%s, "+
 		"}",
-		config.StringGoString(c.Datacenter),
 		c.Dependency,
-		config.StringGoString(c.Destination),
-		config.StringGoString(c.Source),
+		config.StringGoString(c.SourcePath),
+		config.StringGoString(c.SourceDatacenter),
+		config.StringGoString(c.DestinationPath),
+		config.StringGoString(c.DestinationDatacenter),
 	)
 }
 
@@ -196,7 +225,7 @@ func (c *PrefixConfigs) Merge(o *PrefixConfigs) *PrefixConfigs {
 
 func (c *PrefixConfigs) Finalize() {
 	if c == nil {
-		*c = *DefaultPrefixConfigs()
+		c = DefaultPrefixConfigs()
 	}
 
 	for _, t := range *c {

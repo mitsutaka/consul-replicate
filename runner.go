@@ -12,17 +12,18 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
-	"strings"
-
+	"github.com/alitto/pond"
 	"github.com/hashicorp/consul-template/config"
 	dep "github.com/hashicorp/consul-template/dependency"
 	"github.com/hashicorp/consul-template/watch"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
+	"golang.org/x/sync/syncmap"
 )
 
 // Regexp for invalid characters in keys
@@ -53,7 +54,8 @@ type Runner struct {
 	config *Config
 
 	// client is the consul/api client.
-	clients *dep.ClientSet
+	clientsSrc *dep.ClientSet
+	clientsDst *dep.ClientSet
 
 	// data is the internal storage engine for this runner with the key being the
 	// String() for the dependency and the result being the view that holds the
@@ -237,19 +239,23 @@ func (r *Runner) init() error {
 	log.Printf("[DEBUG] (runner) final config (tokens suppressed):\n\n%s\n\n",
 		result)
 
-	// Create the client
-	clients, err := newClientSet(r.config)
+	// Create the clients
+	clients, err := newClientSet(r.config.ConsulSrc)
 	if err != nil {
 		return fmt.Errorf("runner: %s", err)
 	}
-	r.clients = clients
+	clients.Consul().AddHeader("X-Consul-Query-Backend", api.QueryBackendStreaming)
+	r.clientsSrc = clients
+
+	clients, err = newClientSet(r.config.ConsulDst)
+	if err != nil {
+		return fmt.Errorf("runner: %s", err)
+	}
+	clients.Consul().AddHeader("X-Consul-Query-Backend", api.QueryBackendStreaming)
+	r.clientsDst = clients
 
 	// Create the watcher
-	watcher, err := newWatcher(r.config, clients, r.once)
-	if err != nil {
-		return fmt.Errorf("runner: %s", err)
-	}
-	r.watcher = watcher
+	r.watcher = newWatcher(r.config, r.clientsSrc, r.once)
 
 	r.data = make(map[string]*watch.View)
 
@@ -274,17 +280,18 @@ func (r *Runner) get(prefix *PrefixConfig) (*watch.View, bool) {
 // prefix. This function is designed to be called via a goroutine since it is
 // expensive and needs to be parallelized.
 func (r *Runner) replicate(prefix *PrefixConfig, excludes *ExcludeConfigs, doneCh chan struct{}, errCh chan error) {
+	// log.Printf("[INFO] (runner) replicating: %#v", prefix)
 	// Ensure we are not self-replicating
-	info, err := r.clients.Consul().Agent().Self()
-	if err != nil {
-		errCh <- fmt.Errorf("failed to query agent: %s", err)
-		return
-	}
-	localDatacenter := info["Config"]["Datacenter"].(string)
-	if localDatacenter == config.StringVal(prefix.Datacenter) {
-		errCh <- fmt.Errorf("local datacenter cannot be the source datacenter")
-		return
-	}
+	//info, err := r.clientsSrc.Consul().Agent().Self()
+	//if err != nil {
+	//	errCh <- fmt.Errorf("failed to query agent: %s", err)
+	//	return
+	//}
+	// localDatacenter := info["Config"]["Datacenter"].(string)
+	// if localDatacenter == config.StringVal(prefix.Datacenter) {
+	// 	errCh <- fmt.Errorf("local datacenter cannot be the source datacenter")
+	// 	return
+	// }
 
 	// Get the last status
 	status, err := r.getStatus(prefix)
@@ -308,113 +315,233 @@ func (r *Runner) replicate(prefix *PrefixConfig, excludes *ExcludeConfigs, doneC
 		errCh <- fmt.Errorf("could not convert watch data")
 		return
 	}
+	log.Printf("[INFO] (runner) analyzing %d keys", len(pairs))
 
-	kv := r.clients.Consul().KV()
+	// Sort target KV path by modified index
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].ModifyIndex < pairs[j].ModifyIndex
+	})
+
+	// kv := r.clientsSrc.Consul().KV()
+	// r.clientsDst.Consul().AddHeader("X-Consul-Query-Backend", api.QueryBackendStreaming)
+	// log.Printf("[TRACE] (runner) header %q", r.clientsDst.Consul().Headers())
+
+	kv := r.clientsDst.Consul().KV()
 
 	// Update keys to the most recent versions
+	creates := 0
 	updates := 0
-	usedKeys := make(map[string]struct{}, len(pairs))
-	for _, pair := range pairs {
-		key := config.StringVal(prefix.Destination) +
-			strings.TrimPrefix(pair.Path, config.StringVal(prefix.Source))
-		usedKeys[key] = struct{}{}
+	excludesC := 0
 
-		// Ignore if the key falls under an excluded prefix
-		if len(*excludes) > 0 {
-			excluded := false
-			for _, exclude := range *excludes {
-				if strings.HasPrefix(pair.Path, config.StringVal(exclude.Source)) {
-					log.Printf("[DEBUG] (runner) key %q has prefix %q, excluding",
-						pair.Path, config.StringVal(exclude.Source))
-					excluded = true
+	// usedKeys := make(map[string]struct{}, len(pairs))
+	usedKeys := syncmap.Map{}
+	// usedKeysMutex := sync.RWMutex{}
+	// Define the maximum number of concurrent workers
+	// concurrencyLimit := 16
+	// Create a WaitGroup to track worker completion
+	// var wgAdd sync.WaitGroup
+	// Create a channel to limitAdd worker concurrency
+	// limitAdd := make(chan bool, concurrencyLimit)
+	// // Fill the channel with 'true' values to signal initial availability
+	// for i := 0; i < concurrencyLimit; i++ {
+	// 	limitAdd <- true
+	// }
+
+	// Launch 5 workers
+	// for i := 0; i < 5; i++ {
+	// wgAdd.Add(len(pairs))
+
+	pool := pond.New(100, 1000)
+	// pool := pond.New(100, 1000, pond.Strategy(pond.Eager()))
+
+	for _, pair := range pairs {
+		// wgAdd.Add(1)
+		log.Printf("[DEBUG] (runner) pair: %#v", pair.Path)
+		// go func(pair *dep.KeyPair) {
+		pair := pair
+		// usedKeys := usedKeys
+		pool.Submit(func() {
+			// defer wgAdd.Done()
+			// <-limitAdd // Wait for a slot to become available
+			key := config.StringVal(prefix.DestinationPath) +
+				strings.TrimPrefix(pair.Path, config.StringVal(prefix.SourcePath))
+
+			usedKeys.Store(key, struct{}{})
+			// usedKeys[key] = struct{}{}
+
+			// Ignore if the key falls under an excluded prefix
+			if len(*excludes) > 0 {
+				excluded := false
+				for _, exclude := range *excludes {
+					if strings.HasPrefix(pair.Path, config.StringVal(exclude.Source)) {
+						log.Printf("[DEBUG] (runner) key %q has prefix %q, excluding",
+							pair.Path, config.StringVal(exclude.Source))
+						excluded = true
+					}
+				}
+
+				if excluded {
+					excludesC++
+					return
+					// continue
 				}
 			}
 
-			if excluded {
-				continue
+			// Ignore if the modify index is old
+			if pair.ModifyIndex <= status.LastReplicated {
+				log.Printf("[DEBUG] (runner) skipping because %q is already "+
+					"replicated", key)
+				return
+				// continue
 			}
-		}
 
-		// Ignore if the modify index is old
-		if pair.ModifyIndex <= status.LastReplicated {
-			log.Printf("[DEBUG] (runner) skipping because %q is already "+
-				"replicated", key)
-			continue
-		}
+			// Check if lock
+			if pair.Flags == api.SemaphoreFlagValue {
+				log.Printf("[WARN] (runner) lock in use at %q, but sessions cannot be "+
+					"replicated across datacenters", key)
+			}
 
-		// Check if lock
-		if pair.Flags == api.SemaphoreFlagValue {
-			log.Printf("[WARN] (runner) lock in use at %q, but sessions cannot be "+
-				"replicated across datacenters", key)
-		}
+			// Check if semaphore
+			if pair.Flags == api.LockFlagValue {
+				log.Printf("[WARN] (runner) semaphore in use at %q, but sessions cannot "+
+					"be replicated across datacenters", key)
+			}
 
-		// Check if semaphore
-		if pair.Flags == api.LockFlagValue {
-			log.Printf("[WARN] (runner) semaphore in use at %q, but sessions cannot "+
-				"be replicated across datacenters", key)
-		}
+			// Check if session attached
+			if pair.Session != "" {
+				log.Printf("[WARN] (runner) %q has attached session, but sessions "+
+					"cannot be replicated across datacenters", key)
+			}
 
-		// Check if session attached
-		if pair.Session != "" {
-			log.Printf("[WARN] (runner) %q has attached session, but sessions "+
-				"cannot be replicated across datacenters", key)
-		}
+			if _, err := kv.Put(&api.KVPair{
+				Key:   key,
+				Flags: pair.Flags,
+				Value: []byte(pair.Value),
+			}, nil); err != nil {
+				errCh <- fmt.Errorf("failed to write %q: %s", key, err)
+				return
+			}
 
-		if _, err := kv.Put(&api.KVPair{
-			Key:   key,
-			Flags: pair.Flags,
-			Value: []byte(pair.Value),
-		}, nil); err != nil {
-			errCh <- fmt.Errorf("failed to write %q: %s", key, err)
-			return
-		}
-		log.Printf("[DEBUG] (runner) updated key %q", key)
-		updates++
+			if pair.CreateIndex == pair.ModifyIndex {
+				log.Printf("[DEBUG] (runner) created key %q", key)
+				creates++
+			} else {
+				log.Printf("[DEBUG] (runner) updated key %q", key)
+				updates++
+			}
+			// Signal a slot is free
+			// limitAdd <- true
+		})
 	}
+	// wgAdd.Wait() // Wait for all goroutines to finish
+	pool.StopAndWait()
 
+	log.Printf("[INFO] (runner) kv put completed")
 	// Handle deletes
 	deletes := 0
-	localKeys, _, err := kv.Keys(config.StringVal(prefix.Destination), "", nil)
+	dstKeys, _, err := kv.Keys(config.StringVal(prefix.DestinationPath), "", &api.QueryOptions{
+		AllowStale: true,
+	})
 	if err != nil {
 		errCh <- fmt.Errorf("failed to list keys: %s", err)
 		return
 	}
-	for _, key := range localKeys {
-		excluded := false
+	// var wgDel sync.WaitGroup
+	// Create a channel to limitAdd worker concurrency
+	// limitDel := make(chan bool, concurrencyLimit)
+	// for i := 0; i < concurrencyLimit; i++ {
+	// 	limitDel <- true
+	// }
 
-		// Ignore if the key falls under an excluded prefix
-		if len(*excludes) > 0 {
-			sourceKey := strings.Replace(key, config.StringVal(prefix.Destination), config.StringVal(prefix.Source), -1)
-			for _, exclude := range *excludes {
-				if strings.HasPrefix(sourceKey, config.StringVal(exclude.Source)) {
-					log.Printf("[DEBUG] (runner) key %q has prefix %q, excluding from deletes",
-						sourceKey, *exclude.Source)
-					excluded = true
+	poolD := pond.New(100, 1000)
+	// poolD := pond.New(100, 1000, pond.Strategy(pond.Eager()))
+	// wgDel.Add(len(dstKeys))
+	for _, key := range dstKeys {
+		// wgDel.Add(1)
+		// log.Printf("[DEBUG] (runner) key: %#v", key)
+		// go func(key string) {
+		key := key
+		// usedKeys := usedKeys
+		poolD.Submit(func() {
+			// defer wgDel.Done()
+			// <-limitDel // Wait for a slot to become available
+			// wg.Add(1)
+			// key := config.StringVal(prefix.DestinationPath) +
+			// strings.TrimPrefix(key, config.StringVal(prefix.SourcePath))
+			excluded := false
+
+			// Ignore if the key falls under an excluded prefix
+			if len(*excludes) > 0 {
+				sourceKey := strings.Replace(key, config.StringVal(prefix.DestinationPath), config.StringVal(prefix.SourcePath), -1)
+				// sourceKey := key
+				for _, exclude := range *excludes {
+					if strings.HasPrefix(sourceKey, config.StringVal(exclude.Source)) {
+						log.Printf("[DEBUG] (runner) key %q has prefix %q, excluding from deletes",
+							sourceKey, *exclude.Source)
+						excluded = true
+						excludesC++
+					}
 				}
 			}
-		}
 
-		if _, ok := usedKeys[key]; !ok && !excluded {
-			if _, err := kv.Delete(key, nil); err != nil {
-				errCh <- fmt.Errorf("failed to delete %q: %s", key, err)
-				return
+			if _, ok := usedKeys.Load(key); !ok && !excluded {
+				// log.Printf("[DEBUG] (runner) deleting %q", key)
+				if _, err := kv.Delete(key, nil); err != nil {
+					errCh <- fmt.Errorf("failed to delete %q: %s", key, err)
+				} else {
+					log.Printf("[DEBUG] (runner) deleted %q", key)
+					deletes++
+				}
 			}
-			log.Printf("[DEBUG] (runner) deleted %q", key)
-			deletes++
-		}
+			// Signal a slot is free
+			// limitDel <- true
+		})
 	}
+
+	poolD.StopAndWait()
+	log.Printf("[INFO] (runner) kv delete completed")
+	// wgDel.Wait() // Wait for all goroutines to finish
+
+	// for _, key := range dstKeys {
+	// 	// key := config.StringVal(prefix.DestinationPath) +
+	// 	// 	strings.TrimPrefix(key, config.StringVal(prefix.SourcePath))
+	// 	// log.Printf("[DEBUG] (runner) key: %#v", key)
+	// 	excluded := false
+
+	// 	// Ignore if the key falls under an excluded prefix
+	// 	if len(*excludes) > 0 {
+	// 		// sourceKey := strings.Replace(key, config.StringVal(prefix.DestinationPath), config.StringVal(prefix.SourcePath), -1)
+	// 		sourceKey := key
+	// 		for _, exclude := range *excludes {
+	// 			if strings.HasPrefix(sourceKey, config.StringVal(exclude.Source)) {
+	// 				log.Printf("[DEBUG] (runner) key %q has prefix %q, excluding from deletes",
+	// 					sourceKey, *exclude.Source)
+	// 				excluded = true
+	// 			}
+	// 		}
+	// 	}
+
+	// 	if _, ok := usedKeys[key]; !ok && !excluded {
+	// 		if _, err := kvDst.Delete(key, nil); err != nil {
+	// 			errCh <- fmt.Errorf("failed to delete %q: %s", key, err)
+	// 			return
+	// 		}
+	// 		log.Printf("[DEBUG] (runner) deleted %q", key)
+	// 		deletes++
+	// 	}
+	// }
 
 	// Update our status
 	status.LastReplicated = lastIndex
-	status.Source = config.StringVal(prefix.Source)
-	status.Destination = config.StringVal(prefix.Destination)
+	status.Source = config.StringVal(prefix.SourcePath)
+	status.Destination = config.StringVal(prefix.DestinationPath)
 	if err := r.setStatus(prefix, status); err != nil {
 		errCh <- fmt.Errorf("failed to checkpoint status: %s", err)
 		return
 	}
 
-	if updates > 0 || deletes > 0 {
-		log.Printf("[INFO] (runner) replicated %d updates, %d deletes", updates, deletes)
+	if creates > 0 || updates > 0 || deletes > 0 {
+		log.Printf("[INFO] (runner) replicated %d creates, %d updates, %d deletes, %d excludes", creates, updates, deletes, excludesC)
 	}
 
 	// We are done!
@@ -423,7 +550,7 @@ func (r *Runner) replicate(prefix *PrefixConfig, excludes *ExcludeConfigs, doneC
 
 // getStatus is used to read the last replication status.
 func (r *Runner) getStatus(prefix *PrefixConfig) (*Status, error) {
-	kv := r.clients.Consul().KV()
+	kv := r.clientsSrc.Consul().KV()
 	pair, _, err := kv.Get(r.statusPath(prefix), nil)
 	if err != nil {
 		return nil, err
@@ -447,7 +574,7 @@ func (r *Runner) setStatus(prefix *PrefixConfig, status *Status) error {
 	}
 
 	// Put the key to Consul.
-	kv := r.clients.Consul().KV()
+	kv := r.clientsSrc.Consul().KV()
 	_, err = kv.Put(&api.KVPair{
 		Key:   r.statusPath(prefix),
 		Value: enc,
@@ -456,7 +583,7 @@ func (r *Runner) setStatus(prefix *PrefixConfig, status *Status) error {
 }
 
 func (r *Runner) statusPath(prefix *PrefixConfig) string {
-	plain := fmt.Sprintf("%s-%s", config.StringVal(prefix.Source), config.StringVal(prefix.Destination))
+	plain := fmt.Sprintf("%s-%s", config.StringVal(prefix.SourcePath), config.StringVal(prefix.DestinationPath))
 	hash := md5.Sum([]byte(plain))
 	enc := hex.EncodeToString(hash[:])
 	return strings.TrimRight(config.StringVal(r.config.StatusDir), "/") + "/" + enc
@@ -471,7 +598,7 @@ func (r *Runner) storePid() error {
 
 	log.Printf("[INFO] creating pid file at %q", path)
 
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 	if err != nil {
 		return fmt.Errorf("runner: could not open pid file: %s", err)
 	}
@@ -510,29 +637,29 @@ func (r *Runner) deletePid() error {
 }
 
 // newClientSet creates a new client set from the given config.
-func newClientSet(c *Config) (*dep.ClientSet, error) {
+func newClientSet(c *config.ConsulConfig) (*dep.ClientSet, error) {
 	clients := dep.NewClientSet()
 
 	if err := clients.CreateConsulClient(&dep.CreateConsulClientInput{
-		Address:                      config.StringVal(c.Consul.Address),
-		Token:                        config.StringVal(c.Consul.Token),
-		AuthEnabled:                  config.BoolVal(c.Consul.Auth.Enabled),
-		AuthUsername:                 config.StringVal(c.Consul.Auth.Username),
-		AuthPassword:                 config.StringVal(c.Consul.Auth.Password),
-		SSLEnabled:                   config.BoolVal(c.Consul.SSL.Enabled),
-		SSLVerify:                    config.BoolVal(c.Consul.SSL.Verify),
-		SSLCert:                      config.StringVal(c.Consul.SSL.Cert),
-		SSLKey:                       config.StringVal(c.Consul.SSL.Key),
-		SSLCACert:                    config.StringVal(c.Consul.SSL.CaCert),
-		SSLCAPath:                    config.StringVal(c.Consul.SSL.CaPath),
-		ServerName:                   config.StringVal(c.Consul.SSL.ServerName),
-		TransportDialKeepAlive:       config.TimeDurationVal(c.Consul.Transport.DialKeepAlive),
-		TransportDialTimeout:         config.TimeDurationVal(c.Consul.Transport.DialTimeout),
-		TransportDisableKeepAlives:   config.BoolVal(c.Consul.Transport.DisableKeepAlives),
-		TransportIdleConnTimeout:     config.TimeDurationVal(c.Consul.Transport.IdleConnTimeout),
-		TransportMaxIdleConns:        config.IntVal(c.Consul.Transport.MaxIdleConns),
-		TransportMaxIdleConnsPerHost: config.IntVal(c.Consul.Transport.MaxIdleConnsPerHost),
-		TransportTLSHandshakeTimeout: config.TimeDurationVal(c.Consul.Transport.TLSHandshakeTimeout),
+		Address:                      config.StringVal(c.Address),
+		Token:                        config.StringVal(c.Token),
+		AuthEnabled:                  config.BoolVal(c.Auth.Enabled),
+		AuthUsername:                 config.StringVal(c.Auth.Username),
+		AuthPassword:                 config.StringVal(c.Auth.Password),
+		SSLEnabled:                   config.BoolVal(c.SSL.Enabled),
+		SSLVerify:                    config.BoolVal(c.SSL.Verify),
+		SSLCert:                      config.StringVal(c.SSL.Cert),
+		SSLKey:                       config.StringVal(c.SSL.Key),
+		SSLCACert:                    config.StringVal(c.SSL.CaCert),
+		SSLCAPath:                    config.StringVal(c.SSL.CaPath),
+		ServerName:                   config.StringVal(c.SSL.ServerName),
+		TransportDialKeepAlive:       config.TimeDurationVal(c.Transport.DialKeepAlive),
+		TransportDialTimeout:         config.TimeDurationVal(c.Transport.DialTimeout),
+		TransportDisableKeepAlives:   config.BoolVal(c.Transport.DisableKeepAlives),
+		TransportIdleConnTimeout:     config.TimeDurationVal(c.Transport.IdleConnTimeout),
+		TransportMaxIdleConns:        config.IntVal(c.Transport.MaxIdleConns),
+		TransportMaxIdleConnsPerHost: config.IntVal(c.Transport.MaxIdleConnsPerHost),
+		TransportTLSHandshakeTimeout: config.TimeDurationVal(c.Transport.TLSHandshakeTimeout),
 	}); err != nil {
 		return nil, fmt.Errorf("runner: %s", err)
 	}
@@ -541,18 +668,15 @@ func newClientSet(c *Config) (*dep.ClientSet, error) {
 }
 
 // newWatcher creates a new watcher.
-func newWatcher(c *Config, clients *dep.ClientSet, once bool) (*watch.Watcher, error) {
+func newWatcher(c *Config, clients *dep.ClientSet, once bool) *watch.Watcher {
 	log.Printf("[INFO] (runner) creating watcher")
 
-	w, err := watch.NewWatcher(&watch.NewWatcherInput{
+	w := watch.NewWatcher(&watch.NewWatcherInput{
 		Clients:          clients,
 		MaxStale:         config.TimeDurationVal(c.MaxStale),
 		Once:             once,
-		RetryFuncConsul:  watch.RetryFunc(c.Consul.Retry.RetryFunc()),
+		RetryFuncConsul:  watch.RetryFunc(c.ConsulSrc.Retry.RetryFunc()),
 		RetryFuncDefault: nil,
 	})
-	if err != nil {
-		return nil, errors.Wrap(err, "runner")
-	}
-	return w, nil
+	return w
 }

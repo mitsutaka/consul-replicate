@@ -40,8 +40,11 @@ const (
 
 // Config is used to configure Consul ENV
 type Config struct {
-	// Consul is the configuration for connecting to a Consul cluster.
-	Consul *config.ConsulConfig `mapstructure:"consul"`
+	// ConsulSrc is the configuration for connecting to a ConsulSrc cluster.
+	ConsulSrc *config.ConsulConfig `mapstructure:"consul_source"`
+
+	// ConsulDst is the configuration for connecting to a ConsulDst cluster.
+	ConsulDst *config.ConsulConfig `mapstructure:"consul_destination"`
 
 	// Excludes is the list of key prefixes to exclude from replication.
 	Excludes *ExcludeConfigs `mapstructure:"exclude"`
@@ -82,8 +85,12 @@ type Config struct {
 func (c *Config) Copy() *Config {
 	var o Config
 
-	if c.Consul != nil {
-		o.Consul = c.Consul.Copy()
+	if c.ConsulSrc != nil {
+		o.ConsulSrc = c.ConsulSrc.Copy()
+	}
+
+	if c.ConsulDst != nil {
+		o.ConsulDst = c.ConsulDst.Copy()
 	}
 
 	if c.Excludes != nil {
@@ -131,8 +138,12 @@ func (c *Config) Merge(o *Config) *Config {
 
 	r := c.Copy()
 
-	if o.Consul != nil {
-		r.Consul = r.Consul.Merge(o.Consul)
+	if o.ConsulSrc != nil {
+		r.ConsulSrc = r.ConsulSrc.Merge(o.ConsulSrc)
+	}
+
+	if o.ConsulDst != nil {
+		r.ConsulDst = r.ConsulDst.Merge(o.ConsulDst)
 	}
 
 	if o.Excludes != nil {
@@ -185,7 +196,8 @@ func (c *Config) GoString() string {
 	}
 
 	return fmt.Sprintf("&Config{"+
-		"Consul:%s, "+
+		"ConsulSrc:%s, "+
+		"ConsulDst:%s, "+
 		"Excludes:%s, "+
 		"KillSignal:%s, "+
 		"LogLevel:%s, "+
@@ -197,7 +209,8 @@ func (c *Config) GoString() string {
 		"Syslog:%s, "+
 		"Wait:%s"+
 		"}",
-		c.Consul.GoString(),
+		c.ConsulSrc.GoString(),
+		c.ConsulDst.GoString(),
 		c.Excludes.GoString(),
 		config.SignalGoString(c.KillSignal),
 		config.StringGoString(c.LogLevel),
@@ -215,7 +228,8 @@ func (c *Config) GoString() string {
 // variables may be set which control the values for the default configuration.
 func DefaultConfig() *Config {
 	return &Config{
-		Consul:    config.DefaultConsulConfig(),
+		ConsulSrc: config.DefaultConsulConfig(),
+		ConsulDst: config.DefaultConsulConfig(),
 		Excludes:  DefaultExcludeConfigs(),
 		Prefixes:  DefaultPrefixConfigs(),
 		StatusDir: config.String(DefaultStatusDir),
@@ -234,10 +248,15 @@ func (c *Config) Finalize() {
 		return
 	}
 
-	if c.Consul == nil {
-		c.Consul = config.DefaultConsulConfig()
+	if c.ConsulSrc == nil {
+		c.ConsulSrc = config.DefaultConsulConfig()
 	}
-	c.Consul.Finalize()
+	c.ConsulSrc.Finalize()
+
+	if c.ConsulDst == nil {
+		c.ConsulDst = config.DefaultConsulConfig()
+	}
+	c.ConsulDst.Finalize()
 
 	if c.Excludes == nil {
 		c.Excludes = DefaultExcludeConfigs()
@@ -301,11 +320,16 @@ func Parse(s string) (*Config, error) {
 	}
 
 	flattenKeys(parsed, []string{
-		"consul",
-		"consul.auth",
-		"consul.retry",
-		"consul.ssl",
-		"consul.transport",
+		"consul_source",
+		"consul_source.auth",
+		"consul_source.retry",
+		"consul_source.ssl",
+		"consul_source.transport",
+		"consul_destination",
+		"consul_destination.auth",
+		"consul_destination.retry",
+		"consul_destination.ssl",
+		"consul_destination.transport",
 		"syslog",
 		"wait",
 	})
@@ -338,9 +362,9 @@ func Parse(s string) (*Config, error) {
 			"top-level stanza. Update your configuration files and change retry {} " +
 			"to consul { retry { ... } } instead.")
 
-		consul, ok := parsed["consul"].(map[string]interface{})
+		consulSrc, ok := parsed["consul_source"].(map[string]interface{})
 		if !ok {
-			consul = map[string]interface{}{}
+			consulSrc = map[string]interface{}{}
 		}
 
 		r := map[string]interface{}{
@@ -348,8 +372,16 @@ func Parse(s string) (*Config, error) {
 			"max_backoff": retry,
 		}
 
-		consul["retry"] = r
-		parsed["consul"] = consul
+		consulSrc["retry"] = r
+		parsed["consul_source"] = consulSrc
+
+		consulDst, ok := parsed["consul_destination"].(map[string]interface{})
+		if !ok {
+			consulDst = map[string]interface{}{}
+		}
+
+		consulDst["retry"] = r
+		parsed["consul_destination"] = consulDst
 
 		delete(parsed, "retry")
 	}
@@ -358,13 +390,13 @@ func Parse(s string) (*Config, error) {
 			"top-level stanza. Update your configuration files and change ssl {} " +
 			"to consul { ssl { ... } } instead.")
 
-		consul, ok := parsed["consul"].(map[string]interface{})
+		consulSrc, ok := parsed["consul_source"].(map[string]interface{})
 		if !ok {
-			consul = map[string]interface{}{}
+			consulSrc = map[string]interface{}{}
 		}
 
-		consul["ssl"] = ssl
-		parsed["consul"] = consul
+		consulSrc["ssl"] = ssl
+		parsed["consul_source"] = consulSrc
 
 		delete(parsed, "ssl")
 	}
@@ -372,12 +404,12 @@ func Parse(s string) (*Config, error) {
 		log.Printf("[WARN] token is now a child stanza inside consul instead of a " +
 			"top-level key. Update your configuration files and change token = \"...\" " +
 			"to consul { token = \"...\" } instead.")
-		consul, ok := parsed["consul"].(map[string]interface{})
+		consulSrc, ok := parsed["consul_source"].(map[string]interface{})
 		if !ok {
-			consul = map[string]interface{}{}
+			consulSrc = map[string]interface{}{}
 		}
-		consul["token"] = token
-		parsed["consul"] = consul
+		consulSrc["token"] = token
+		parsed["consul_source"] = consulSrc
 		delete(parsed, "token")
 	}
 
@@ -491,7 +523,6 @@ func FromPath(path string) (*Config, error) {
 
 			return nil
 		})
-
 		if err != nil {
 			return nil, errors.Wrap(err, "walk error")
 		}

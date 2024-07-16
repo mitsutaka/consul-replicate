@@ -118,7 +118,7 @@ func (c *ExcludeConfigs) Merge(o *ExcludeConfigs) *ExcludeConfigs {
 
 func (c *ExcludeConfigs) Finalize() {
 	if c == nil {
-		*c = *DefaultExcludeConfigs()
+		c = DefaultExcludeConfigs()
 	}
 
 	for _, t := range *c {

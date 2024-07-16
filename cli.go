@@ -178,7 +178,7 @@ func (cli *CLI) Run(args []string) int {
 // much easier and cleaner.
 func (cli *CLI) ParseFlags(args []string) (*Config, []string, bool, bool, error) {
 	var once, isVersion bool
-	var c = DefaultConfig()
+	c := DefaultConfig()
 
 	// configPaths stores the list of configuration paths on disk
 	configPaths := make([]string, 0, 6)
@@ -194,7 +194,7 @@ func (cli *CLI) ParseFlags(args []string) (*Config, []string, bool, bool, error)
 	}), "config", "")
 
 	flags.Var((funcVar)(func(s string) error {
-		c.Consul.Address = config.String(s)
+		c.ConsulSrc.Address = config.String(s)
 		return nil
 	}), "consul-addr", "")
 
@@ -203,94 +203,193 @@ func (cli *CLI) ParseFlags(args []string) (*Config, []string, bool, bool, error)
 		if err != nil {
 			return err
 		}
-		c.Consul.Auth = a
+		c.ConsulSrc.Auth = a
 		return nil
 	}), "consul-auth", "")
 
 	flags.Var((funcBoolVar)(func(b bool) error {
-		c.Consul.Retry.Enabled = config.Bool(b)
+		c.ConsulSrc.Retry.Enabled = config.Bool(b)
 		return nil
 	}), "consul-retry", "")
 
 	flags.Var((funcIntVar)(func(i int) error {
-		c.Consul.Retry.Attempts = config.Int(i)
+		c.ConsulSrc.Retry.Attempts = config.Int(i)
 		return nil
 	}), "consul-retry-attempts", "")
 
 	flags.Var((funcDurationVar)(func(d time.Duration) error {
-		c.Consul.Retry.Backoff = config.TimeDuration(d)
+		c.ConsulSrc.Retry.Backoff = config.TimeDuration(d)
 		return nil
 	}), "consul-retry-backoff", "")
 
 	flags.Var((funcDurationVar)(func(d time.Duration) error {
-		c.Consul.Retry.MaxBackoff = config.TimeDuration(d)
+		c.ConsulSrc.Retry.MaxBackoff = config.TimeDuration(d)
 		return nil
 	}), "consul-retry-max-backoff", "")
 
 	flags.Var((funcBoolVar)(func(b bool) error {
-		c.Consul.SSL.Enabled = config.Bool(b)
+		c.ConsulSrc.SSL.Enabled = config.Bool(b)
 		return nil
 	}), "consul-ssl", "")
 
 	flags.Var((funcVar)(func(s string) error {
-		c.Consul.SSL.CaCert = config.String(s)
+		c.ConsulSrc.SSL.CaCert = config.String(s)
 		return nil
 	}), "consul-ssl-ca-cert", "")
 
 	flags.Var((funcVar)(func(s string) error {
-		c.Consul.SSL.CaPath = config.String(s)
+		c.ConsulSrc.SSL.CaPath = config.String(s)
 		return nil
 	}), "consul-ssl-ca-path", "")
 
 	flags.Var((funcVar)(func(s string) error {
-		c.Consul.SSL.Cert = config.String(s)
+		c.ConsulSrc.SSL.Cert = config.String(s)
 		return nil
 	}), "consul-ssl-cert", "")
 
 	flags.Var((funcVar)(func(s string) error {
-		c.Consul.SSL.Key = config.String(s)
+		c.ConsulSrc.SSL.Key = config.String(s)
 		return nil
 	}), "consul-ssl-key", "")
 
 	flags.Var((funcVar)(func(s string) error {
-		c.Consul.SSL.ServerName = config.String(s)
+		c.ConsulSrc.SSL.ServerName = config.String(s)
 		return nil
 	}), "consul-ssl-server-name", "")
 
 	flags.Var((funcBoolVar)(func(b bool) error {
-		c.Consul.SSL.Verify = config.Bool(b)
+		c.ConsulSrc.SSL.Verify = config.Bool(b)
 		return nil
 	}), "consul-ssl-verify", "")
 
 	flags.Var((funcVar)(func(s string) error {
-		c.Consul.Token = config.String(s)
+		c.ConsulSrc.Token = config.String(s)
 		return nil
 	}), "consul-token", "")
 
 	flags.Var((funcDurationVar)(func(d time.Duration) error {
-		c.Consul.Transport.DialKeepAlive = config.TimeDuration(d)
+		c.ConsulSrc.Transport.DialKeepAlive = config.TimeDuration(d)
 		return nil
 	}), "consul-transport-dial-keep-alive", "")
 
 	flags.Var((funcDurationVar)(func(d time.Duration) error {
-		c.Consul.Transport.DialTimeout = config.TimeDuration(d)
+		c.ConsulSrc.Transport.DialTimeout = config.TimeDuration(d)
 		return nil
 	}), "consul-transport-dial-timeout", "")
 
 	flags.Var((funcBoolVar)(func(b bool) error {
-		c.Consul.Transport.DisableKeepAlives = config.Bool(b)
+		c.ConsulSrc.Transport.DisableKeepAlives = config.Bool(b)
 		return nil
 	}), "consul-transport-disable-keep-alives", "")
 
 	flags.Var((funcIntVar)(func(i int) error {
-		c.Consul.Transport.MaxIdleConnsPerHost = config.Int(i)
+		c.ConsulSrc.Transport.MaxIdleConnsPerHost = config.Int(i)
 		return nil
 	}), "consul-transport-max-idle-conns-per-host", "")
 
 	flags.Var((funcDurationVar)(func(d time.Duration) error {
-		c.Consul.Transport.TLSHandshakeTimeout = config.TimeDuration(d)
+		c.ConsulSrc.Transport.TLSHandshakeTimeout = config.TimeDuration(d)
 		return nil
 	}), "consul-transport-tls-handshake-timeout", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		c.ConsulDst.Address = config.String(s)
+		return nil
+	}), "consul-dst-addr", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		a, err := config.ParseAuthConfig(s)
+		if err != nil {
+			return err
+		}
+		c.ConsulDst.Auth = a
+		return nil
+	}), "consul-dst-auth", "")
+
+	flags.Var((funcBoolVar)(func(b bool) error {
+		c.ConsulDst.Retry.Enabled = config.Bool(b)
+		return nil
+	}), "consul-dst-retry", "")
+
+	flags.Var((funcIntVar)(func(i int) error {
+		c.ConsulDst.Retry.Attempts = config.Int(i)
+		return nil
+	}), "consul-dst-retry-attempts", "")
+
+	flags.Var((funcDurationVar)(func(d time.Duration) error {
+		c.ConsulDst.Retry.Backoff = config.TimeDuration(d)
+		return nil
+	}), "consul-dst-retry-backoff", "")
+
+	flags.Var((funcDurationVar)(func(d time.Duration) error {
+		c.ConsulDst.Retry.MaxBackoff = config.TimeDuration(d)
+		return nil
+	}), "consul-dst-retry-max-backoff", "")
+
+	flags.Var((funcBoolVar)(func(b bool) error {
+		c.ConsulDst.SSL.Enabled = config.Bool(b)
+		return nil
+	}), "consul-dst-ssl", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		c.ConsulDst.SSL.CaCert = config.String(s)
+		return nil
+	}), "consul-dst-ssl-ca-cert", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		c.ConsulDst.SSL.CaPath = config.String(s)
+		return nil
+	}), "consul-dst-ssl-ca-path", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		c.ConsulDst.SSL.Cert = config.String(s)
+		return nil
+	}), "consul-dst-ssl-cert", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		c.ConsulDst.SSL.Key = config.String(s)
+		return nil
+	}), "consul-dst-ssl-key", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		c.ConsulDst.SSL.ServerName = config.String(s)
+		return nil
+	}), "consul-dst-ssl-server-name", "")
+
+	flags.Var((funcBoolVar)(func(b bool) error {
+		c.ConsulDst.SSL.Verify = config.Bool(b)
+		return nil
+	}), "consul-dst-ssl-verify", "")
+
+	flags.Var((funcVar)(func(s string) error {
+		c.ConsulDst.Token = config.String(s)
+		return nil
+	}), "consul-dst-token", "")
+
+	flags.Var((funcDurationVar)(func(d time.Duration) error {
+		c.ConsulDst.Transport.DialKeepAlive = config.TimeDuration(d)
+		return nil
+	}), "consul-dst-transport-dial-keep-alive", "")
+
+	flags.Var((funcDurationVar)(func(d time.Duration) error {
+		c.ConsulDst.Transport.DialTimeout = config.TimeDuration(d)
+		return nil
+	}), "consul-dst-transport-dial-timeout", "")
+
+	flags.Var((funcBoolVar)(func(b bool) error {
+		c.ConsulDst.Transport.DisableKeepAlives = config.Bool(b)
+		return nil
+	}), "consul-dst-transport-disable-keep-alives", "")
+
+	flags.Var((funcIntVar)(func(i int) error {
+		c.ConsulDst.Transport.MaxIdleConnsPerHost = config.Int(i)
+		return nil
+	}), "consul-dst-transport-max-idle-conns-per-host", "")
+
+	flags.Var((funcDurationVar)(func(d time.Duration) error {
+		c.ConsulDst.Transport.TLSHandshakeTimeout = config.TimeDuration(d)
+		return nil
+	}), "consul-dst-transport-tls-handshake-timeout", "")
 
 	flags.Var((funcVar)(func(s string) error {
 		e, err := ParseExcludeConfig(s)
@@ -380,53 +479,53 @@ func (cli *CLI) ParseFlags(args []string) (*Config, []string, bool, bool, error)
 		if err != nil {
 			return err
 		}
-		c.Consul.Auth = a
+		c.ConsulSrc.Auth = a
 		return nil
 	}), "auth", "")
 	flags.Var((funcVar)(func(s string) error {
 		log.Printf("[WARN] -consul is now -consul-addr")
-		c.Consul.Address = config.String(s)
+		c.ConsulSrc.Address = config.String(s)
 		return nil
 	}), "consul", "")
 	flags.Var((funcDurationVar)(func(d time.Duration) error {
 		log.Printf("[WARN] -retry is now -consul-retry-*")
-		c.Consul.Retry.Backoff = config.TimeDuration(d)
-		c.Consul.Retry.MaxBackoff = config.TimeDuration(d)
+		c.ConsulSrc.Retry.Backoff = config.TimeDuration(d)
+		c.ConsulSrc.Retry.MaxBackoff = config.TimeDuration(d)
 		return nil
 	}), "retry", "")
 	flags.Var((funcBoolVar)(func(b bool) error {
 		log.Printf("[WARN] -ssl is now -consul-ssl-*")
-		c.Consul.SSL.Enabled = config.Bool(b)
+		c.ConsulSrc.SSL.Enabled = config.Bool(b)
 		return nil
 	}), "ssl", "")
 	flags.Var((funcBoolVar)(func(b bool) error {
 		log.Printf("[WARN] -ssl-verify is now -consul-ssl-verify")
-		c.Consul.SSL.Verify = config.Bool(b)
+		c.ConsulSrc.SSL.Verify = config.Bool(b)
 		return nil
 	}), "ssl-verify", "")
 	flags.Var((funcVar)(func(s string) error {
 		log.Printf("[WARN] -ssl-ca-cert is now -consul-ssl-ca-cert")
-		c.Consul.SSL.CaCert = config.String(s)
+		c.ConsulSrc.SSL.CaCert = config.String(s)
 		return nil
 	}), "ssl-ca-cert", "")
 	flags.Var((funcVar)(func(s string) error {
 		log.Printf("[WARN] -ssl-ca-path is now -consul-ssl-ca-path")
-		c.Consul.SSL.CaPath = config.String(s)
+		c.ConsulSrc.SSL.CaPath = config.String(s)
 		return nil
 	}), "ssl-ca-path", "")
 	flags.Var((funcVar)(func(s string) error {
 		log.Printf("[WARN] -ssl-cert is now -consul-ssl-cert")
-		c.Consul.SSL.Cert = config.String(s)
+		c.ConsulSrc.SSL.Cert = config.String(s)
 		return nil
 	}), "ssl-cert", "")
 	flags.Var((funcVar)(func(s string) error {
 		log.Printf("[WARN] -ssl-server-name is now -consul-ssl-server-name")
-		c.Consul.SSL.ServerName = config.String(s)
+		c.ConsulSrc.SSL.ServerName = config.String(s)
 		return nil
 	}), "ssl-server-name", "")
 	flags.Var((funcVar)(func(s string) error {
 		log.Printf("[WARN] -token is now -consul-token")
-		c.Consul.Token = config.String(s)
+		c.ConsulSrc.Token = config.String(s)
 		return nil
 	}), "token", "")
 	// End deprecations

@@ -15,7 +15,8 @@ func StringToPrefixConfigFunc() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}
@@ -38,7 +39,8 @@ func MapToPrefixConfigFunc() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() != reflect.Map {
 			return data, nil
 		}
@@ -51,21 +53,22 @@ func MapToPrefixConfigFunc() mapstructure.DecodeHookFunc {
 			return data, nil
 		}
 
-		source, ok := d["source"].(string)
+		source, ok := d["source_path"].(string)
 		if !ok {
 			return data, nil
 		}
 
-		for _, v := range []string{"dc", "datacenter"} {
-			if dc, ok := d[v].(string); ok {
-				source = source + "@" + dc
-				break
-			}
+		if dc, ok := d["source_datacenter"].(string); ok {
+			source = source + "@" + dc
 		}
 
-		dest, ok := d["destination"].(string)
+		dest, ok := d["destination_path"].(string)
 		if ok {
 			source = source + ":" + dest
+		}
+
+		if dc, ok := d["destination_datacenter"].(string); ok {
+			source = source + "@" + dc
 		}
 
 		// Convert it by parsing
@@ -83,7 +86,8 @@ func StringToExcludeConfigFunc() mapstructure.DecodeHookFunc {
 	return func(
 		f reflect.Type,
 		t reflect.Type,
-		data interface{}) (interface{}, error) {
+		data interface{},
+	) (interface{}, error) {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}
